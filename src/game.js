@@ -1,5 +1,11 @@
 import * as THREE from "three";
 
+/*
+==================================
+CENA
+==================================
+*/
+
 const scene = new THREE.Scene();
 
 scene.background = new THREE.Color(0x87ceeb);
@@ -15,59 +21,156 @@ const renderer = new THREE.WebGLRenderer({
   antialias: true
 });
 
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+renderer.shadowMap.enabled = true;
 
 document.body.appendChild(renderer.domElement);
 
-const light = new THREE.DirectionalLight(0xffffff, 2);
+/*
+==================================
+LUZES
+==================================
+*/
 
-light.position.set(5, 10, 5);
-
-scene.add(light);
-
-const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+const ambient = new THREE.AmbientLight(
+  0xffffff,
+  1
+);
 
 scene.add(ambient);
 
-const floorGeometry = new THREE.PlaneGeometry(100, 100);
+const sun = new THREE.DirectionalLight(
+  0xffffff,
+  2
+);
 
-const floorMaterial = new THREE.MeshStandardMaterial({
-  color: 0x228b22
-});
+sun.position.set(10, 20, 10);
+
+sun.castShadow = true;
+
+scene.add(sun);
+
+/*
+==================================
+CHÃO
+==================================
+*/
 
 const floor = new THREE.Mesh(
-  floorGeometry,
-  floorMaterial
+  new THREE.PlaneGeometry(100, 100),
+  new THREE.MeshStandardMaterial({
+    color: 0x3fa34d
+  })
 );
 
 floor.rotation.x = -Math.PI / 2;
 
+floor.receiveShadow = true;
+
 scene.add(floor);
 
-const player = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
+/*
+==================================
+PERSONAGEM
+==================================
+*/
+
+const player = new THREE.Group();
+
+const body = new THREE.Mesh(
+  new THREE.CapsuleGeometry(
+    0.4,
+    1.2,
+    8,
+    16
+  ),
   new THREE.MeshStandardMaterial({
-    color: 0x0066ff
+    color: 0x2979ff
   })
 );
 
-player.position.y = 0.5;
+body.castShadow = true;
+
+player.add(body);
+
+player.position.set(0, 1, 0);
 
 scene.add(player);
 
-camera.position.set(0, 5, 8);
+/*
+==================================
+CÂMERA
+==================================
+*/
 
-let score = 0;
+camera.position.set(0, 6, 8);
 
-const scoreEl = document.getElementById("score");
+const cameraOffset =
+  new THREE.Vector3(0, 6, 8);
+
+/*
+==================================
+MOVIMENTO
+==================================
+*/
+
+const keys = {};
+
+window.addEventListener(
+  "keydown",
+  (e) => {
+    keys[e.key.toLowerCase()] = true;
+  }
+);
+
+window.addEventListener(
+  "keyup",
+  (e) => {
+    keys[e.key.toLowerCase()] = false;
+  }
+);
+
+const velocity =
+  new THREE.Vector3();
+
+const direction =
+  new THREE.Vector3();
+
+const maxSpeed = 0.15;
+
+const acceleration = 0.015;
+
+const damping = 0.90;
+
+/*
+==================================
+MOEDAS
+==================================
+*/
 
 const coins = [];
 
+const scoreElement =
+  document.getElementById("score");
+
+let score = 0;
+
 function createCoin() {
   const coin = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 0.5, 0.2, 32),
+    new THREE.CylinderGeometry(
+      0.4,
+      0.4,
+      0.15,
+      32
+    ),
     new THREE.MeshStandardMaterial({
-      color: 0xffd700
+      color: 0xffd700,
+      metalness: 0.8,
+      roughness: 0.2
     })
   );
 
@@ -79,6 +182,8 @@ function createCoin() {
     (Math.random() - 0.5) * 40
   );
 
+  coin.castShadow = true;
+
   scene.add(coin);
 
   coins.push(coin);
@@ -88,63 +193,151 @@ for (let i = 0; i < 20; i++) {
   createCoin();
 }
 
-const keys = {};
-
-window.addEventListener("keydown", e => {
-  keys[e.key.toLowerCase()] = true;
-});
-
-window.addEventListener("keyup", e => {
-  keys[e.key.toLowerCase()] = false;
-});
+/*
+==================================
+ANIMAÇÃO
+==================================
+*/
 
 function animate() {
   requestAnimationFrame(animate);
 
-  const speed = 0.15;
+  direction.set(0, 0, 0);
 
-  if (keys["w"]) player.position.z -= speed;
-  if (keys["s"]) player.position.z += speed;
-  if (keys["a"]) player.position.x -= speed;
-  if (keys["d"]) player.position.x += speed;
+  /*
+  WASD
+  */
 
-  camera.position.x = player.position.x;
-  camera.position.z = player.position.z + 8;
+  if (keys["w"])
+    direction.z -= 1;
+
+  if (keys["s"])
+    direction.z += 1;
+
+  if (keys["a"])
+    direction.x -= 1;
+
+  if (keys["d"])
+    direction.x += 1;
+
+  /*
+  SETAS
+  */
+
+  if (keys["arrowup"])
+    direction.z -= 1;
+
+  if (keys["arrowdown"])
+    direction.z += 1;
+
+  if (keys["arrowleft"])
+    direction.x -= 1;
+
+  if (keys["arrowright"])
+    direction.x += 1;
+
+  /*
+  MOVIMENTO
+  */
+
+  if (direction.length() > 0) {
+
+    direction.normalize();
+
+    velocity.x +=
+      direction.x * acceleration;
+
+    velocity.z +=
+      direction.z * acceleration;
+
+    const angle = Math.atan2(
+      direction.x,
+      direction.z
+    );
+
+    player.rotation.y = angle;
+  }
+
+  velocity.multiplyScalar(damping);
+
+  velocity.clampLength(
+    0,
+    maxSpeed
+  );
+
+  player.position.add(velocity);
+
+  /*
+  CÂMERA SUAVE
+  */
+
+  const desiredCameraPos =
+    player.position
+      .clone()
+      .add(cameraOffset);
+
+  camera.position.lerp(
+    desiredCameraPos,
+    0.08
+  );
 
   camera.lookAt(player.position);
 
+  /*
+  ANIMAÇÃO DAS MOEDAS
+  */
+
   coins.forEach((coin, index) => {
+
     coin.rotation.z += 0.05;
 
-    const dist = player.position.distanceTo(
-      coin.position
-    );
+    const distance =
+      player.position.distanceTo(
+        coin.position
+      );
 
-    if (dist < 1.2) {
+    if (distance < 1) {
+
       scene.remove(coin);
+
       coins.splice(index, 1);
 
       score++;
 
-      scoreEl.textContent = score;
+      scoreElement.textContent =
+        score;
 
       createCoin();
     }
   });
 
-  renderer.render(scene, camera);
+  renderer.render(
+    scene,
+    camera
+  );
 }
 
 animate();
 
-window.addEventListener("resize", () => {
-  camera.aspect =
-    window.innerWidth / window.innerHeight;
+/*
+==================================
+RESIZE
+==================================
+*/
 
-  camera.updateProjectionMatrix();
+window.addEventListener(
+  "resize",
+  () => {
 
-  renderer.setSize(
-    window.innerWidth,
-    window.innerHeight
-  );
-});
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+  }
+);
